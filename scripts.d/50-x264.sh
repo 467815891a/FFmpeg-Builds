@@ -1,6 +1,7 @@
 #!/bin/bash
 
-SCRIPT_REPO="https://code.videolan.org/videolan/x264.git"
+# 2026-08-12 换源: code.videolan.org 被 Anubis 反爬封禁, 改指镜像(见下方注释)
+SCRIPT_REPO="https://gitee.com/mirrors/x264.git"
 SCRIPT_COMMIT="0480cb05fa188d37ae87e8f4fd8f1aea3711f7ee"
 
 ffbuild_enabled() {

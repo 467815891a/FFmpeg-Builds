@@ -1,6 +1,7 @@
 #!/bin/bash
 
-SCRIPT_REPO="https://code.videolan.org/videolan/dav1d.git"
+# 2026-08-12 换源: code.videolan.org 被 Anubis 反爬封禁, 改指镜像(见下方注释)
+SCRIPT_REPO="https://github.com/videolan/dav1d.git"
 SCRIPT_COMMIT="c150ba6c9b9be0956330a9ddfee33ad88f2b1bc5"
 
 ffbuild_enabled() {

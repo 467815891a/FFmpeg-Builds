@@ -146,3 +146,20 @@ ffbuild_libs() {
 ffbuild_unlibs() {
     return 0
 }
+
+# pkg_copy [CP_FLAGS...] SRC_GLOB DST_DIR
+# SRC_GLOB MUST be quoted by the caller so pathname expansion happens here
+# (inside this function), not in the caller. Copies every file/dir matching
+# SRC_GLOB into DST_DIR. If the glob matches nothing (e.g. ffmpeg.exe was not
+# built in a slim addin, or HTML/PDF docs were not generated because makeinfo
+# is missing), the copy is skipped instead of aborting the packaging step.
+pkg_copy() {
+    local dst="${@: -1}"
+    local glob="${@: -2:1}"
+    local -a flags=("${@:1:$#-2}")
+    local -a files=( $glob )
+    if [[ -n "${files[0]}" && -e "${files[0]}" ]]; then
+        mkdir -p "$dst"
+        cp "${flags[@]}" "${files[@]}" "$dst"/
+    fi
+}

@@ -1,7 +1,11 @@
 #!/bin/bash
 
-SCRIPT_REPO="https://code.videolan.org/videolan/libbluray.git"
-SCRIPT_COMMIT="8b4fb6e2562bb86601ea5a2c4140af6d8f3f1cf4"
+# 2026-08-12 换源: code.videolan.org 被 Anubis 反爬封禁, 改指镜像(见下方注释)
+# 2026-08-12 换源: code.videolan.org 被 Anubis 反爬封禁, 改用官方发布 tarball(download.videolan.org)
+ffbuild_dockerdl() {
+    echo "retry-tool sh -c \"curl -sSL -o bluray.tar.bz2 'https://download.videolan.org/pub/videolan/libbluray/1.3.4/libbluray-1.3.4.tar.bz2' && tar xjf bluray.tar.bz2 --strip-components=1\""
+    return
+}
 
 ffbuild_depends() {
     echo base
@@ -15,27 +19,23 @@ ffbuild_enabled() {
 }
 
 ffbuild_dockerbuild() {
-    # stop the static library from exporting symbols when linked into a shared lib
-    sed -i 's/-DBLURAY_API_EXPORT/-DBLURAY_API_EXPORT_DISABLED/g' src/meson.build
-
-    mkdir build && cd build
-
     local myconf=(
         --prefix="$FFBUILD_PREFIX"
-        -Ddefault_library=static
-        -Denable_docs=false
-        -Denable_tools=false
-        -Denable_devtools=false
-        -Denable_examples=false
-        -Dbdj_jar=disabled
-        -Dfontconfig=enabled
-        -Dfreetype=enabled
-        -Dlibxml2=enabled
+        --disable-shared
+        --enable-static
+        --with-pic
+        # 2026-08-13: libbluray 1.3.4 configure 无 --disable-bdjava 选项
+        # (autoconf 静默忽略), BD-Java JAR 默认构建 -> 强制查 ant 并报错。
+        # 窗口静态构建不需要 JAR, 改用 --disable-bdjava-jar。
+        --disable-bdjava-jar
+        --disable-doxygen-doc
+        --disable-examples
+        --disable-utils
     )
 
     if [[ $TARGET == win* || $TARGET == linux* ]]; then
         myconf+=(
-            --cross-file=/cross.meson
+            --host="$FFBUILD_TOOLCHAIN"
         )
     else
         echo "Unknown target"
@@ -44,9 +44,9 @@ ffbuild_dockerbuild() {
 
     export CPPFLAGS="${CPPFLAGS} -Ddec_init=libbr_dec_init"
 
-    meson setup "${myconf[@]}" ..
-    ninja -j$(nproc)
-    DESTDIR="$FFBUILD_DESTDIR" ninja install
+    ./configure "${myconf[@]}"
+    make -j$(nproc)
+    make install DESTDIR="$FFBUILD_DESTDIR"
 }
 
 ffbuild_configure() {

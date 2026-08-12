@@ -4,12 +4,9 @@ package_variant() {
     IN="$1"
     OUT="$2"
 
-    mkdir -p "$OUT"/bin
-    cp "$IN"/bin/* "$OUT"/bin
+    pkg_copy "$IN/bin/*" "$OUT/bin"
 
-    mkdir -p "$OUT/doc"
-    cp -r "$IN"/share/doc/ffmpeg/* "$OUT"/doc
+    pkg_copy "$IN/share/doc/ffmpeg/*" "$OUT/doc"
 
-    mkdir -p "$OUT/presets"
-    cp "$IN"/share/ffmpeg/*.ffpreset "$OUT"/presets
+    pkg_copy "$IN/share/ffmpeg/*.ffpreset" "$OUT/presets"
 }

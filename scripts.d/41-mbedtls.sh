@@ -1,9 +1,5 @@
 #!/bin/bash
 
-# 2026-08-13 修复: 原 SCRIPT_COMMIT=v4.1.0 会导致 librist 编译失败。
-# 原因: mbedtls 4.x 移除了传统的 mbedtls/aes.h 等单算法头文件(重构成 build_info.h 等),
-# 而 nanake/librist v0.2.6 源码 crypto/psk.h 仍 #include "mbedtls/aes.h" (mbedtls 2.x/3.x API)。
-# 改为 v3.6.3 (与顶层 scripts.d/41-mbedtls.sh 一致), 保留 mbedtls/aes.h, 并开启 DTLS 以匹配 librist RIST 需求。
 SCRIPT_REPO="https://github.com/ARMmbed/mbedtls.git"
 SCRIPT_COMMIT="v3.6.3"
 SCRIPT_TAGFILTER="v3.6.*"
@@ -22,7 +18,7 @@ ffbuild_dockerbuild() {
         python3 scripts/config.py unset MBEDTLS_AESNI_C
     fi
 
-    # RIST 使用 DTLS-SRTP, 需开启 DTLS 支持
+    # WebRTC/DTLS-SRTP support required by libdatachannel (off by default in mbedTLS 3.6.x)
     python3 scripts/config.py set MBEDTLS_SSL_DTLS_SRTP
     python3 scripts/config.py set MBEDTLS_SSL_PROTO_DTLS
     mkdir build && cd build

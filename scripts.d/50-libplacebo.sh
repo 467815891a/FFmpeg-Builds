@@ -1,21 +1,22 @@
 #!/bin/bash
 
-SCRIPT_REPO="https://code.videolan.org/videolan/libplacebo.git"
+SCRIPT_REPO="https://github.com/haasn/libplacebo.git"
 SCRIPT_COMMIT="05ac2cca6571c04d06369a26825d207781b73f32"
 
+ffbuild_enabled() {
+    return 0
+}
 ffbuild_depends() {
     echo base
     echo vulkan
 }
 
-ffbuild_enabled() {
-    (( $(ffbuild_ffver) > 600 )) || return -1
-    return 0
-}
-
 ffbuild_dockerdl() {
-    default_dl .
-    echo "git submodule update --init --recursive --depth=1 --filter=blob:none"
+    echo "git init ."
+    echo "git remote add origin \"$SCRIPT_REPO\""
+    echo "retry-tool git fetch --depth 1 origin \"$SCRIPT_COMMIT\""
+    echo "git checkout FETCH_HEAD"
+    echo "git submodule update --init --recursive --depth 1"
 }
 
 ffbuild_dockerbuild() {

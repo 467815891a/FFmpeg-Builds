@@ -1,6 +1,7 @@
 #!/bin/bash
 
-SCRIPT_REPO="https://git.code.sf.net/p/soxr/code"
+# 2026-08-12 换源: 原主机(svn.xvid.org / git.code.sf.net)不可达, 改指 github 镜像
+SCRIPT_REPO="https://github.com/chirlu/soxr.git"
 SCRIPT_COMMIT="945b592b70470e29f917f4de89b4281fbbd540c0"
 
 ffbuild_enabled() {

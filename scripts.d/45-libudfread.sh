@@ -1,36 +1,40 @@
 #!/bin/bash
 
-SCRIPT_REPO="https://code.videolan.org/videolan/libudfread.git"
-SCRIPT_COMMIT="139a2194525f2745b98a98e4d8fa627d07440176"
+# 2026-08-13 换源: 原 code.videolan.org(git, meson) 被 Anubis 反爬封禁失效;
+# download.videolan.org 发布 tarball 当前 502 不可达;
+# 改用 Debian 源上的官方 orig tarball(libudfread_1.1.2.orig.tar.gz, 同源上游 1.1.2 重打包, 当前可达)。
+# 注意: 该 orig tarball 是未生成 configure 的原始上游包(只含 bootstrap/configure.ac/Makefile.am/m4),
+# 必须先用 ./bootstrap (= autoreconf -vif) 现生成 configure, 再走 autotools 构建。
+ffbuild_dockerdl() {
+    echo "retry-tool sh -c \"curl -sSL -o udfread.tar.gz 'https://deb.debian.org/debian/pool/main/libu/libudfread/libudfread_1.1.2.orig.tar.gz' && tar xzf udfread.tar.gz --strip-components=1\""
+    return
+}
 
 ffbuild_enabled() {
     return 0
 }
 
 ffbuild_dockerbuild() {
-    # stop the static library from exporting symbols when linked into a shared lib
-    sed -i 's/-DUDFREAD_API_EXPORT/-DUDFREAD_API_EXPORT_DISABLED/g' src/meson.build
-
-    mkdir build && cd build
+    # 原始上游包无 configure, 先生成(autoreconf -vif)
+    ./bootstrap
 
     local myconf=(
         --prefix="$FFBUILD_PREFIX"
-        -Ddefault_library=static
-        -Denable_examples=false
+        --disable-shared
+        --enable-static
+        --with-pic
     )
 
     if [[ $TARGET == win* || $TARGET == linux* ]]; then
         myconf+=(
-            --cross-file=/cross.meson
+            --host="$FFBUILD_TOOLCHAIN"
         )
     else
         echo "Unknown target"
         return -1
     fi
 
-    meson setup "${myconf[@]}" ..
-    ninja -j$(nproc)
-    DESTDIR="$FFBUILD_DESTDIR" ninja install
-
-    ln -s libudfread.pc "$FFBUILD_DESTPREFIX"/lib/pkgconfig/udfread.pc
+    ./configure "${myconf[@]}"
+    make -j$(nproc)
+    make install DESTDIR="$FFBUILD_DESTDIR"
 }

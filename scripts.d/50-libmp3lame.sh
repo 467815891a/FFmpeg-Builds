@@ -13,7 +13,9 @@ ffbuild_enabled() {
 }
 
 ffbuild_dockerdl() {
-    echo "retry-tool sh -c \"rm -rf lame && svn checkout '${SCRIPT_REPO}@${SCRIPT_REV}' lame\" && cd lame"
+    # 2026-08-12 换源: svn.code.sf.net 不可达, 改下 sourceforge 官方 tarball
+    echo "retry-tool sh -c \"curl -sSL -o lame.tar.gz 'https://downloads.sourceforge.net/project/lame/lame/3.100/lame-3.100.tar.gz' && tar xzf lame.tar.gz --strip-components=1\""
+    return
 }
 
 ffbuild_dockerbuild() {

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-SCRIPT_REPO="https://git.code.sf.net/p/opencore-amr/code"
+SCRIPT_REPO="https://github.com/arthenica/opencore-amr.git"
 SCRIPT_COMMIT="7dba8c32238418ce0b316a852b2224df586ca896"
 
 ffbuild_enabled() {

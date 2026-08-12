@@ -16,8 +16,21 @@ trap "rm -rf -- '$DL_SCRIPT_DIR'" EXIT
 
 mkdir -p "${PWD}"/.cache/downloads
 
+ffbuild_addin_skips() {
+	# return 0 if $1 (stage basename) is excluded for the current addin
+	case " ${FFBUILD_EXCLUDE_STAGES:-} " in
+		*" $1 "*) return 0 ;;
+	esac
+	return 1
+}
+
 for STAGE in scripts.d/*.sh scripts.d/*/*.sh; do
 	STAGENAME="$(basename "$STAGE" | sed 's/.sh$//')"
+
+	if ffbuild_addin_skips "$STAGENAME"; then
+		echo "SKIP(excluded stage): $STAGE"
+		continue
+	fi
 
 	cat <<-EOF >"${DL_SCRIPT_DIR}/${STAGENAME}.sh"
 		set -xe -o pipefail

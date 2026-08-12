@@ -1,7 +1,11 @@
 #!/bin/bash
 
-SCRIPT_REPO="https://code.videolan.org/videolan/libdvdread.git"
-SCRIPT_COMMIT="8c1c65fbbb2944cd0201c404cd72859a18a3bbf8"
+# 2026-08-12 换源: code.videolan.org 被 Anubis 反爬封禁, 改指镜像(见下方注释)
+# 2026-08-12 换源: code.videolan.org 被 Anubis 反爬封禁, 改用官方发布 tarball(download.videolan.org)
+ffbuild_dockerdl() {
+    echo "retry-tool sh -c \"curl -sSL -o dvdread.tar.bz2 'https://download.videolan.org/pub/videolan/libdvdread/6.1.3/libdvdread-6.1.3.tar.bz2' && tar xjf dvdread.tar.bz2 --strip-components=1\""
+    return
+}
 
 ffbuild_enabled() {
     [[ $VARIANT == lgpl* ]] && return -1
@@ -10,21 +14,16 @@ ffbuild_enabled() {
 }
 
 ffbuild_dockerbuild() {
-    # stop the static library from exporting symbols when linked into a shared lib
-    sed -i 's/-DDVDREAD_API_EXPORT/-DDVDREAD_API_EXPORT_DISABLED/g' src/meson.build
-
-    mkdir build && cd build
-
     local myconf=(
         --prefix="$FFBUILD_PREFIX"
-        -Ddefault_library=static
-        -Denable_docs=false
-        -Dlibdvdcss=enabled
+        --disable-shared
+        --enable-static
+        --with-pic
     )
 
     if [[ $TARGET == win* || $TARGET == linux* ]]; then
         myconf+=(
-            --cross-file=/cross.meson
+            --host="$FFBUILD_TOOLCHAIN"
         )
     else
         echo "Unknown target"
@@ -33,9 +32,9 @@ ffbuild_dockerbuild() {
 
     export CFLAGS="$CFLAGS -Dfile_open_default=libdvdread_file_open_default -Ddir_open_default=libdvdread_dir_open_default"
 
-    meson setup "${myconf[@]}" ..
-    ninja -j$(nproc)
-    DESTDIR="$FFBUILD_DESTDIR" ninja install
+    ./configure "${myconf[@]}"
+    make -j$(nproc)
+    make install DESTDIR="$FFBUILD_DESTDIR"
 
     if [[ $TARGET == linux* ]]; then
         echo 'Cflags: -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE' >> "$FFBUILD_DESTPREFIX"/lib/pkgconfig/dvdread.pc

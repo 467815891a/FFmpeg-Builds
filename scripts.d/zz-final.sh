@@ -35,6 +35,7 @@ ffbuild_depends() {
     echo libass
     echo libbluray
     echo libcurl
+    echo libdatachannel
     echo libjxl
     echo libmp3lame
     echo libopus

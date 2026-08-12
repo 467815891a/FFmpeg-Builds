@@ -6,6 +6,21 @@ source util/vars.sh
 
 export LC_ALL=C.UTF-8
 
+ffbuild_addin_skips() {
+    # return 0 if $1 (stage basename) is excluded for the current addin
+    case " ${FFBUILD_EXCLUDE_STAGES:-} " in
+        *" $1 "*) return 0 ;;
+    esac
+    return 1
+}
+
+ffbuild_guard() {
+    # override ffbuild_enabled for addin-excluded stages (subshell-local)
+    if ffbuild_addin_skips "$(basename "$SELF" | sed 's/.sh$//')"; then
+        ffbuild_enabled() { return -1; }
+    fi
+}
+
 rm -f Dockerfile Dockerfile.{dl,final,dl.final}
 
 layername() {
@@ -49,6 +64,8 @@ exec_dockerstage() {
         source util/dl_functions.sh
         source "$SCRIPT"
 
+        ffbuild_guard
+
         ffbuild_enabled || exit 0
 
         to_df "ENV SELF=\"$SELF\" STAGENAME=\"$STAGENAME\""
@@ -79,6 +96,8 @@ get_stagedeps() {
             STAGENAME="$(basename "$SCRIPT" | sed 's/.sh$//')"
             source util/dl_functions.sh
             source "$SCRIPT"
+
+            ffbuild_guard
 
             ffbuild_enabled || exit 0
             ffbuild_depends
@@ -123,6 +142,7 @@ get_output() {
     (
         SELF="$1"
         source "$1"
+        ffbuild_guard
         if ffbuild_enabled; then
             ffbuild_$2 || exit 0
         else
@@ -159,6 +179,7 @@ while true; do
         (
             SELF="$SCRIPT"
             source "$SCRIPT"
+            ffbuild_guard
             ffbuild_enabled || exit $?
             to_df "FROM ${BASELAYER} AS ${CURDEP}"
         ) || continue
@@ -169,6 +190,7 @@ while true; do
                 SELF="$SCRIPT"
                 SELFLAYER="$SUBDEP"
                 source "$SCRIPT"
+                ffbuild_guard
                 ffbuild_enabled || exit 0
                 ffbuild_dockerlayer || exit $?
             )
@@ -203,6 +225,7 @@ for SUBDEP in $(get_stagedeps_recursive "${ENTRYSCRIPT}"); do
         COMBINING="1"
         SELFLAYER="$SUBDEP"
         source "$SCRIPT"
+        ffbuild_guard
         ffbuild_enabled || exit 0
         ffbuild_dockerlayer || exit $?
         TODF="Dockerfile.final" PREVLAYER="$COMBINELAYER" \
@@ -222,6 +245,39 @@ done
 to_df "FROM ${BASELAYER}"
 sort -u < Dockerfile.final >> Dockerfile
 rm Dockerfile.final
+
+# Addins are sourced before the per-stage ffbuild_configure output is
+# appended, so an addin's --disable-foo loses to a stage's --enable-foo.
+# FF_CONFIGURE_LATE is appended last, giving addins the final word.
+FF_CONFIGURE+=" ${FF_CONFIGURE_LATE:-}"
+# Size-optimization flags contributed by an addin (e.g. the "live" addin sets
+# FFBUILD_CFLAGS_EXTRA / FFBUILD_CXXFLAGS_EXTRA / FFBUILD_LDFLAGS_EXTRA). They are
+# appended here, AFTER the per-stage ffbuild_cflags/ffbuild_ldflags output has
+# been assembled into FF_CFLAGS/FF_CXXFLAGS/FF_LDFLAGS, so they are not lost to
+# build.sh's trailing --extra-cflags="$FF_CFLAGS" (which overrides any
+# --extra-cflags present inside FF_CONFIGURE, risking -DRTC_STATIC being dropped).
+FF_CFLAGS+=" ${FFBUILD_CFLAGS_EXTRA:-}"
+FF_CXXFLAGS+=" ${FFBUILD_CXXFLAGS_EXTRA:-}"
+FF_LDFLAGS+=" ${FFBUILD_LDFLAGS_EXTRA:-}"
+
+# Collapse bare --enable-X/--disable-X toggles so the final FF_CONFIGURE has
+# no contradictory duplicate (last occurrence wins). '=...' variants are left
+# untouched, so e.g. --enable-decoder=h264 and --disable-decoders stay distinct.
+_collapsed=()
+for _tok in $FF_CONFIGURE; do
+    if [[ $_tok =~ ^--(enable|disable)-([A-Za-z0-9_-]+)$ ]]; then
+        _name="${BASH_REMATCH[2]}"
+        _tmp=()
+        for _t in "${_collapsed[@]}"; do
+            [[ $_t =~ ^--(enable|disable)-${_name}$ ]] && continue
+            _tmp+=("$_t")
+        done
+        _collapsed=("${_tmp[@]}" "$_tok")
+    else
+        _collapsed+=("$_tok")
+    fi
+done
+FF_CONFIGURE="${_collapsed[*]}"
 
 FF_CONFIGURE="$(xargs <<< "$FF_CONFIGURE")"
 FF_CFLAGS="$(xargs <<< "$FF_CFLAGS")"
