@@ -37,12 +37,16 @@ FF_CONFIGURE="$FF_CONFIGURE --enable-decoder=aac --enable-decoder=aac_latm --ena
 FF_CONFIGURE="$FF_CONFIGURE --enable-decoder=pcm_alaw --enable-decoder=pcm_mulaw"
 FF_CONFIGURE="$FF_CONFIGURE --enable-decoder=pcm_s16le"
 
-# --- 4. 硬件加速: 只保留 Vulkan ---
+# --- 4. 硬件加速: Vulkan(渲染/解码) + D3D11VA(Windows 硬件解码) ---
 #     vp9_vulkan 额外依赖 vulkan_1_4 (需 Vulkan headers >= 1.4.317);
 #     本项目 scripts.d/47-vulkan/40-vulkan-headers.sh 固定 v1.4.356, 满足。
+#     d3d11va: 为 h264/hevc/vp9 挂 D3D11 硬件解码(仅编译进 ffplay,
+#     运行时用 ffplay -hwaccel d3d11va [-hwaccel_output_format nv12] 启用);
+#     依赖 mingw-w64 的 d3d11.h / dxva2api.h, release/9.0 上 configure 已验证。
 FF_CONFIGURE="$FF_CONFIGURE --disable-hwaccels"
 FF_CONFIGURE="$FF_CONFIGURE --enable-hwaccel=h264_vulkan --enable-hwaccel=hevc_vulkan"
 FF_CONFIGURE="$FF_CONFIGURE --enable-hwaccel=vp9_vulkan"
+FF_CONFIGURE="$FF_CONFIGURE --enable-hwaccel=h264_d3d11va --enable-hwaccel=hevc_d3d11va --enable-hwaccel=vp9_d3d11va"
 
 # --- 5. 解封装器: 只保留 RTSP 链路 ---
 #     rtsp_demuxer_select="http_protocol rtpdec"
@@ -67,7 +71,8 @@ FF_CONFIGURE="$FF_CONFIGURE --enable-protocol=tls  --enable-protocol=crypto"
 #       单空格 sed 规则排除在 FILTER_LIST 之外 —— 即永远内建、不可配置。
 #     scale / aresample 是 libavfilter 格式协商失败时自动插入的转换滤镜(formats.c
 #       conversion_filter), 必须保留, 否则 ffplay 建图直接失败。
-#     hwupload/hwdownload/hwmap/scale_vulkan 用于 Vulkan 硬件加速链路。
+#     hwupload/hwdownload/hwmap/scale_vulkan 用于 Vulkan 硬件加速链路;
+#     hwdownload 同时供 d3d11va 解码帧回读显示使用。
 #     crop/transpose/hflip/vflip/rotate 由 ffplay_select 强制拉入, 已通过在 build.sh
 #       克隆 ffmpeg 后 sed 掉 ffplay_select 对应项 + 此处 --disable-filter 彻底移除。
 FF_CONFIGURE="$FF_CONFIGURE --disable-filters"
@@ -89,22 +94,22 @@ FF_CONFIGURE="$FF_CONFIGURE --enable-protocol=whep"
 FF_CONFIGURE="$FF_CONFIGURE --enable-vulkan"
 
 # --- 10. 硬件后端覆盖项: 必须排在各 stage 的 --enable-* 之后才生效 ---
-# 本项目只做 WHEP/RTSP 软解播放, 不需要任何非 Vulkan 硬件后端。
+# 本项目做 WHEP/RTSP 播放, 硬件后端保留 Vulkan + D3D11VA, 其余不需要。
 # 这些 flag 全部放进 FF_CONFIGURE_LATE, 由 generate.sh 在所有 stage 拼接完之后再追加,
 # 保证 --disable-* 压过各依赖库 stage 自己 emit 的 --enable-* (last wins)。
 #
 # 涉及的上游坑(已绕过, 不再改源码):
 #   * hwcontext_amf.c 的 amf_ctx 仅被 #if CONFIG_DXVA2||CONFIG_D3D11VA 保护,
 #     d3d12va 分支也用到它 —— 直接 --disable-amf 即可让该文件不被编译, 与 d3d12va 无关;
-#     本项目明确也不想要 d3d12va, 一并关掉。
+#     本项目明确也不想要 d3d12va, 一并关掉。(d3d11va 已启用但 amf 仍禁用, 安全)
 #   * hwcontext_opencl.c 用 CONFIG_LIBMFX(而非 CONFIG_QSV)作守卫,
 #     --enable-libvpl 使 CONFIG_LIBMFX=1 -> hwcontext_opencl.o 悬空引用
 #     ff_qsv_get_surface_base_handle, 链接 ffplay 报 undefined reference —— 关掉 opencl/mfx/vpl。
 FF_CONFIGURE_LATE="${FF_CONFIGURE_LATE:-}"
 FF_CONFIGURE_LATE="$FF_CONFIGURE_LATE --disable-avdevice"
-#  AMD / 微软 Windows 后端
+#  AMD / 微软 Windows 后端 (d3d11va 保留, 见第 4 节)
 FF_CONFIGURE_LATE="$FF_CONFIGURE_LATE --disable-amf"
-FF_CONFIGURE_LATE="$FF_CONFIGURE_LATE --disable-d3d12va --disable-dxva2 --disable-d3d11va"
+FF_CONFIGURE_LATE="$FF_CONFIGURE_LATE --disable-d3d12va --disable-dxva2"
 #  Linux/X11 后端
 FF_CONFIGURE_LATE="$FF_CONFIGURE_LATE --disable-vaapi --disable-vdpau --disable-libdrm"
 #  NVIDIA
